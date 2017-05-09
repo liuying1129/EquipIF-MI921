@@ -383,17 +383,18 @@ begin
 end;
 
 procedure TfrmMain.Button1Click(Sender: TObject);
-var
-  ls:Tstrings;
+//var
+//  ls:Tstrings;
 begin
-  OpenDialog1.DefaultExt := '.txt';
-  OpenDialog1.Filter := 'txt (*.txt)|*.txt';
-  if not OpenDialog1.Execute then exit;
-  ls:=Tstringlist.Create;
-  ls.LoadFromFile(OpenDialog1.FileName);
-  rfm:=ls.Text;
-  ComPort1RxChar(nil,0);
-  ls.Free;
+  //OpenDialog1.DefaultExt := '.txt';
+  //OpenDialog1.Filter := 'txt (*.txt)|*.txt';
+  //if not OpenDialog1.Execute then exit;
+  //ls:=Tstringlist.Create;
+  //ls.LoadFromFile(OpenDialog1.FileName);
+  //rfm:=ls.Text;
+  //RFM:='001  000000000000000000  032 4.95 143.0 112.5 0.00 0.00   0.0'+#$D#$A+'002  000000000000000000  032 5.11 153.0 117.4 0.00 0.00   0.0'+#$D#$A;
+  //ComPort1RxChar(nil,0);
+  //ls.Free;
 end;
 
 procedure TfrmMain.ToolButton5Click(Sender: TObject);
@@ -410,6 +411,26 @@ procedure TfrmMain.ComPort1AfterOpen(Sender: TObject);
 begin
   ComPort1.SetDTR(true);
   ComPort1.SetRTS(true);
+end;
+
+function StrToList(const SourStr:string;const Separator:string):TStrings;
+//根据指定的分隔字符串(Separator)将字符串(SourStr)导入到字符串列表中
+var
+  vSourStr,s:string;
+  ll,lll:integer;
+begin
+  vSourStr:=SourStr;
+  Result := TStringList.Create;
+  lll:=length(Separator);
+
+  while pos(Separator,vSourStr)<>0 do
+  begin
+    ll:=pos(Separator,vSourStr);
+    Result.Add(copy(vSourStr,1,ll-1));
+    delete(vSourStr,1,ll+lll-1);
+  end;  //}
+  Result.Add(vSourStr);
+  s:=vSourStr;
 end;
 
 procedure TfrmMain.ComPort1RxChar(Sender: TObject; Count: Integer);
@@ -429,11 +450,10 @@ begin
 
   rfm:=rfm+str;
 
-  ls:=TStringList.Create;
-  ExtractStrings([#$A],[],Pchar(RFM),ls);//将每行导入到字符串列表中
+  ls:=StrToList(RFM,#$A);//如果用ExtractStrings，会将#$D丢弃，所以改用StrToList
   for i :=0 to ls.Count-1 do
   begin
-    if leftstr(ls[i],1)<>#$D then continue;
+    if rightstr(ls[i],1)<>#$D then continue;
 
     delete(rfm,1,length(ls[i])+1);//+1表示#$A
 
