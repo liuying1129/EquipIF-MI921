@@ -427,15 +427,42 @@ end;
 procedure TfrmMain.ComPort1RxChar(Sender: TObject; Count: Integer);
 var
   str:string;
+  ls,sList:TStrings;
+  i,j:integer;
 begin
   str:='';
   comport1.ReadStr(str,count);
-  rfm:=rfm+uppercase(str);
-  if(not timer1.Enabled)then
-  BEGIN
-    //timer1.Interval:=strtointdef(edtSendTime.text,3)*1000;
-    timer1.Enabled:=true;
-  END;
+  rfm:=rfm+str;
+
+  ls:=TStringList.Create;
+  ExtractStrings([#$A],[],Pchar(RFM),ls);//将每行导入到字符串列表中
+  for i :=0 to ls.Count-1 do
+  begin
+    if leftstr(ls[i],1)<>#$D then continue;
+
+    sList:=TStringList.Create;
+    ExtractStrings([' '],[],pchar(ls[i]),sList);
+    SpecNo:=sList[0];
+    ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
+    for  j:=0  to sList.Count-1 do
+    begin
+      ReceiveItemInfo[j]:=VarArrayof([inttostr(j),sList[j],'','']);
+    end;
+    sList.Free;
+    
+    if bRegister then
+    begin
+      FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
+      FInts.fData2Lis(ReceiveItemInfo,(SpecNo),'',
+        (GroupName),(SpecType),(SpecStatus),(EquipChar),
+        (CombinID),'',(LisFormCaption),(ConnectString),
+        (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
+        true,true,'常规');
+      if not VarIsEmpty(FInts) then FInts:= unAssigned;
+    end;
+
+  end;  
+  ls.Free;
 end;
 
 function StrToList(const SourStr:string;const Separator:string):TStrings;
