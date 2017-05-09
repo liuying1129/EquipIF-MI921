@@ -32,7 +32,6 @@ type
     ToolButton9: TToolButton;
     OpenDialog1: TOpenDialog;
     ComPort1: TComPort;
-    Timer1: TTimer;
     SaveDialog1: TSaveDialog;
     procedure N3Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -47,14 +46,12 @@ type
     procedure ToolButton5Click(Sender: TObject);
     procedure ComPort1AfterOpen(Sender: TObject);
     procedure ComPort1RxChar(Sender: TObject; Count: Integer);
-    procedure Timer1Timer(Sender: TObject);
   private
     { Private declarations }
     procedure WMSyscommand(var message:TWMMouse);message WM_SYSCOMMAND;
     procedure UpdateConfig;{配置文件生效}
     function LoadInputPassDll:boolean;
     function MakeDBConn:boolean;
-    function GetSpecNo(const Value:string):string; //取得联机号
   public
     { Public declarations }
   end;
@@ -82,6 +79,7 @@ var
   QuaContSpecNo:string;
   QuaContSpecNoD:string;
   EquipChar:string;
+  ifRecLog:boolean;//是否记录调试日志
 
   RFM:STRING;       //返回数据
   hnd:integer;
@@ -227,6 +225,7 @@ begin
   StopBit:=ini.ReadString(IniSection,'停止位','1');
   ParityBit:=ini.ReadString(IniSection,'校验位','None');
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
+  ifRecLog:=ini.readBool(IniSection,'调试日志',false);
 
   GroupName:=trim(ini.ReadString(IniSection,'组别',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
@@ -308,18 +307,6 @@ begin
     result:=passflag;
 end;
 
-function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
-const
-  spBs=' ';
-var
-  s1Pos:integer;
-begin
-    s1Pos:=pos(spbs,uppercase(Value));
-    result:=copy(Value,1,s1pos-1);
-    result:='0000'+result;
-    result:=rightstr(result,4);
-end;
-
 function TfrmMain.MakeDBConn:boolean;
 var
   ADOConn:TADOConnection;
@@ -371,6 +358,7 @@ begin
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '组合项目代码'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
+      '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '低值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2;
@@ -404,7 +392,7 @@ begin
   ls:=Tstringlist.Create;
   ls.LoadFromFile(OpenDialog1.FileName);
   rfm:=ls.Text;
-  Timer1Timer(nil);
+  ComPort1RxChar(nil,0);
   ls.Free;
 end;
 
@@ -429,9 +417,16 @@ var
   str:string;
   ls,sList:TStrings;
   i,j:integer;
+  SpecNo:string;
+  ReceiveItemInfo:OleVariant;
+  FInts:OleVariant;
 begin
   str:='';
   comport1.ReadStr(str,count);
+  
+  if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
+  memo1.Lines.Add(str);
+
   rfm:=rfm+str;
 
   ls:=TStringList.Create;
@@ -440,13 +435,16 @@ begin
   begin
     if leftstr(ls[i],1)<>#$D then continue;
 
+    delete(rfm,1,length(ls[i])+1);//+1表示#$A
+
     sList:=TStringList.Create;
-    ExtractStrings([' '],[],pchar(ls[i]),sList);
-    SpecNo:=sList[0];
+    ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
+    SpecNo:=rightstr('0000'+sList[0],4);
+
     ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
     for  j:=0  to sList.Count-1 do
     begin
-      ReceiveItemInfo[j]:=VarArrayof([inttostr(j),sList[j],'','']);
+      ReceiveItemInfo[j]:=VarArrayof([inttostr(j),trim(sList[j]),'','']);//trim掉#$D
     end;
     sList.Free;
     
@@ -457,76 +455,12 @@ begin
         (GroupName),(SpecType),(SpecStatus),(EquipChar),
         (CombinID),'',(LisFormCaption),(ConnectString),
         (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-        true,true,'常规');
+        ifRecLog,true,'常规');
       if not VarIsEmpty(FInts) then FInts:= unAssigned;
     end;
 
   end;  
   ls.Free;
-end;
-
-function StrToList(const SourStr:string;const Separator:string):TStrings;
-//根据指定的分隔字符串(Separator)将字符串(SourStr)导入到字符串列表中
-var
-  vSourStr,s:string;
-  ll,lll:integer;
-begin
-  vSourStr:=SourStr;
-  Result := TStringList.Create;
-  lll:=length(Separator);
-
-  while pos(Separator,vSourStr)<>0 do
-  begin
-    ll:=pos(Separator,vSourStr);
-    Result.Add(copy(vSourStr,1,ll-1));
-    delete(vSourStr,1,ll+lll-1);
-  end;  //}
-  Result.Add(vSourStr);
-  s:=vSourStr;
-end;
-
-procedure TfrmMain.Timer1Timer(Sender: TObject);
-var
-  SpecNo:string;
-  rfm2:string;
-  FInts:OleVariant;
-  ReceiveItemInfo:OleVariant;
-  i:integer;
-  //POS1:integer;
-  sList:tstrings;
-begin
-  if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
-  memo1.Lines.Add(rfm);
-
-  rfm2:=rfm;
-  rfm:='';
-  Timer1.Enabled:=false;
-
-  SpecNo:=GetSpecNo(rfm2);
-
-  //POS1:=POS(' ',rfm2);
-  //DELETE(RFM2,1,POS1);
-  //RFM2:=TRIM(RFM2);
-  sList:=TStringList.Create;
-  //sList:=StrToList(RFM2,' ');
-  ExtractStrings([' '],[],pchar(RFM2),sList);
-  ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
-  for  i:=0  to sList.Count-1 do
-  begin
-    ReceiveItemInfo[i]:=VarArrayof([inttostr(i),sList[i],'','']);
-  end;
-  sList.Free;
-  
-  if bRegister then
-  begin
-    FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
-    FInts.fData2Lis(ReceiveItemInfo,(SpecNo),'',
-      (GroupName),(SpecType),(SpecStatus),(EquipChar),
-      (CombinID),'',(LisFormCaption),(ConnectString),
-      (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-      true,true,'常规');
-    if not VarIsEmpty(FInts) then FInts:= unAssigned;
-  end;
 end;
 
 initialization

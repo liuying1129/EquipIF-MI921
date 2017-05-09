@@ -305,13 +305,6 @@ object frmMain: TfrmMain
     Left = 72
     Top = 104
   end
-  object Timer1: TTimer
-    Enabled = False
-    Interval = 3000
-    OnTimer = Timer1Timer
-    Left = 144
-    Top = 104
-  end
   object SaveDialog1: TSaveDialog
     Left = 272
     Top = 26
