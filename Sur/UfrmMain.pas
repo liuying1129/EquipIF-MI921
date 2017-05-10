@@ -455,7 +455,8 @@ begin
   begin
     if rightstr(ls[i],1)<>#$D then continue;
 
-    delete(rfm,1,length(ls[i])+1);//+1表示#$A
+    //delete(rfm,1,length(ls[i])+1);//+1表示#$A
+    rfm:=StringReplace(rfm,ls[i]+'#$A','',[]);
 
     sList:=TStringList.Create;
     ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
