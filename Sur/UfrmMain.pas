@@ -455,7 +455,6 @@ begin
   begin
     if rightstr(ls[i],1)<>#$D then continue;
 
-    //delete(rfm,1,length(ls[i])+1);//+1±Ì æ#$A
     rfm:=StringReplace(rfm,ls[i]+#$A,'',[]);
 
     sList:=TStringList.Create;
