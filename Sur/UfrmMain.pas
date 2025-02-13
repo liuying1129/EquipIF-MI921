@@ -4,23 +4,19 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Controls, Forms,
-  LYTray, Menus, StdCtrls, Buttons, ADODB,
-  ActnList, AppEvnts, ComCtrls, ToolWin, ExtCtrls,
-  registry,inifiles,Dialogs,
-  StrUtils, DB,ComObj,Variants, CPort;
+  Menus, StdCtrls, Buttons, ADODB,
+  ComCtrls, ToolWin, ExtCtrls,
+  inifiles,Dialogs,
+  StrUtils, DB,ComObj,Variants, CPort, CoolTrayIcon;
 
 type
   TfrmMain = class(TForm)
-    LYTray1: TLYTray;
     PopupMenu1: TPopupMenu;
     N1: TMenuItem;
     N2: TMenuItem;
     N3: TMenuItem;
-    ApplicationEvents1: TApplicationEvents;
     CoolBar1: TCoolBar;
     ToolBar1: TToolBar;
-    ToolButton3: TToolButton;
-    ToolButton4: TToolButton;
     ToolButton7: TToolButton;
     ToolButton8: TToolButton;
     ToolButton2: TToolButton;
@@ -33,11 +29,11 @@ type
     OpenDialog1: TOpenDialog;
     ComPort1: TComPort;
     SaveDialog1: TSaveDialog;
+    LYTray1: TCoolTrayIcon;
     procedure N3Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure N1Click(Sender: TObject);
-    procedure ApplicationEvents1Activate(Sender: TObject);
     procedure ToolButton7Click(Sender: TObject);
     procedure ToolButton2Click(Sender: TObject);
     procedure BitBtn2Click(Sender: TObject);
@@ -48,9 +44,7 @@ type
     procedure ComPort1RxChar(Sender: TObject; Count: Integer);
   private
     { Private declarations }
-    procedure WMSyscommand(var message:TWMMouse);message WM_SYSCOMMAND;
     procedure UpdateConfig;{配置文件生效}
-    function LoadInputPassDll:boolean;
     function MakeDBConn:boolean;
   public
     { Public declarations }
@@ -81,7 +75,7 @@ var
   EquipChar:string;
   ifRecLog:boolean;//是否记录调试日志
 
-  RFM:STRING;       //返回数据
+  //RFM:STRING;       //返回数据
   hnd:integer;
   bRegister:boolean;
 
@@ -147,9 +141,6 @@ begin
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
-var
-  ctext        :string;
-  reg          :tregistry;
 begin
   ConnectString:=GetConnectString;
   
@@ -158,52 +149,23 @@ begin
 
   Caption:='数据接收服务'+ExtractFileName(Application.ExeName);
   lytray1.Hint:='数据接收服务'+ExtractFileName(Application.ExeName);
-
-//=============================初始化密码=====================================//
-    reg:=tregistry.Create;
-    reg.RootKey:=HKEY_CURRENT_USER;
-    reg.OpenKey('\sunyear',true);
-    ctext:=reg.ReadString('pass');
-    if ctext='' then
-    begin
-        reg:=tregistry.Create;
-        reg.RootKey:=HKEY_CURRENT_USER;
-        reg.OpenKey('\sunyear',true);
-        reg.WriteString('pass','JIHONM{');
-        //MessageBox(application.Handle,pchar('感谢您使用智能监控系统，'+chr(13)+'请记住初始化密码：'+'lc'),
-        //            '系统提示',MB_OK+MB_ICONinformation);     //WARNING
-    end;
-    reg.CloseKey;
-    reg.Free;
-//============================================================================//
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-    if LoadInputPassDll then action:=cafree else action:=caNone;
+  action:=caNone;
+  LYTray1.HideMainForm;
 end;
 
 procedure TfrmMain.N3Click(Sender: TObject);
 begin
-    if not LoadInputPassDll then exit;
-    application.Terminate;
+  if (MessageDlg('退出后将不再接收设备数据,确定退出吗？', mtWarning, [mbYes, mbNo], 0) <> mrYes) then exit;
+  application.Terminate;
 end;
 
 procedure TfrmMain.N1Click(Sender: TObject);
 begin
-  show;
-end;
-
-procedure TfrmMain.ApplicationEvents1Activate(Sender: TObject);
-begin
-  hide;
-end;
-
-procedure TfrmMain.WMSyscommand(var message: TWMMouse);
-begin
-  inherited;
-  if message.Keys=SC_MINIMIZE then hide;
-  message.Result:=-1;
+  LYTray1.ShowMainForm;
 end;
 
 procedure TfrmMain.ToolButton7Click(Sender: TObject);
@@ -289,24 +251,6 @@ begin
   end;
 end;
 
-function TfrmMain.LoadInputPassDll: boolean;
-TYPE
-    TDLLFUNC=FUNCTION:boolean;
-VAR
-    HLIB:THANDLE;
-    DLLFUNC:TDLLFUNC;
-    PassFlag:boolean;
-begin
-    result:=false;
-    HLIB:=LOADLIBRARY('OnOffLogin.dll');
-    IF HLIB=0 THEN BEGIN SHOWMESSAGE(sCONNECTDEVELOP);EXIT; END;
-    DLLFUNC:=TDLLFUNC(GETPROCADDRESS(HLIB,'showfrmonofflogin'));
-    IF @DLLFUNC=NIL THEN BEGIN SHOWMESSAGE(sCONNECTDEVELOP);EXIT; END;
-    PassFlag:=DLLFUNC;
-    FREELIBRARY(HLIB);
-    result:=passflag;
-end;
-
 function TfrmMain.MakeDBConn:boolean;
 var
   ADOConn:TADOConnection;
@@ -343,10 +287,17 @@ end;
 procedure TfrmMain.ToolButton2Click(Sender: TObject);
 var
   ss:string;
+  lsComPort:TStrings;
+  sComPort:String;
 begin
-  if LoadInputPassDll then
-  begin
-    ss:='串口选择'+#2+'Combobox'+#2+'COM1'+#13+'COM2'+#13+'COM3'+#13+'COM4'+#2+'0'+#2+#2+#3+
+  //获取串口列表 begin
+  lsComPort := TStringList.Create;
+  EnumComPorts(lsComPort);
+  sComPort:=lsComPort.Text;
+  lsComPort.Free;
+  //获取串口列表 end
+
+    ss:='串口选择'+#2+'Combobox'+#2+sComPort+#2+'0'+#2+#2+#3+
       '波特率'+#2+'Combobox'+#2+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
@@ -365,7 +316,6 @@ begin
 
   if ShowOptionForm('',Pchar(IniSection),Pchar(ss),Pchar(ChangeFileExt(Application.ExeName,'.ini'))) then
 	  UpdateConfig;
-  end;
 end;
 
 procedure TfrmMain.BitBtn2Click(Sender: TObject);
@@ -392,8 +342,8 @@ begin
   //ls:=Tstringlist.Create;
   //ls.LoadFromFile(OpenDialog1.FileName);
   //rfm:=ls.Text;
-  //RFM:='001  000000000000000000  032 4.95 143.0 112.5 0.00 0.00   0.0'+#$D#$A+'002  000000000000000000  032 5.11 153.0 117.4 0.00 0.00   0.0'+#$D#$A;
-  //ComPort1RxChar(nil,0);
+  //RFM:='002   5.34   162.1   113.2   1.18   2.42   8.07   36.14   12.83';
+  ComPort1RxChar(nil,0);
   //ls.Free;
 end;
 
@@ -442,20 +392,24 @@ var
   ReceiveItemInfo:OleVariant;
   FInts:OleVariant;
 begin
+  //假设每次接收到1个或多个样本的完整结果数据
   str:='';
   comport1.ReadStr(str,count);
-  
+  //str:='002   5.34   162.1   113.2   1.18   2.42   8.07   36.14   12.83';//此行代码用于测试
+
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(str);
 
-  rfm:=rfm+str;
+  //rfm:=rfm+str;
 
-  ls:=StrToList(RFM,#$A);//如果用ExtractStrings，会将#$D丢弃，所以改用StrToList
+  //ls:=StrToList(RFM,#$A);//如果用ExtractStrings，会将#$D丢弃，所以改用StrToList
+  ls:=TStringList.Create;
+  ExtractStrings([#$D,#$A],[],pchar(str),ls);
   for i :=0 to ls.Count-1 do
   begin
-    if rightstr(ls[i],1)<>#$D then continue;
+    //if rightstr(ls[i],1)<>#$D then continue;
 
-    rfm:=StringReplace(rfm,ls[i]+#$A,'',[]);
+    //rfm:=StringReplace(rfm,ls[i]+#$A,'',[]);
 
     sList:=TStringList.Create;
     ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
@@ -464,7 +418,7 @@ begin
     ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
     for  j:=0  to sList.Count-1 do
     begin
-      ReceiveItemInfo[j]:=VarArrayof([inttostr(j),trim(sList[j]),'','']);//trim掉#$D
+      ReceiveItemInfo[j]:=VarArrayof([inttostr(j),sList[j],'','']);
     end;
     sList.Free;
     
@@ -475,10 +429,15 @@ begin
         (GroupName),(SpecType),(SpecStatus),(EquipChar),
         (CombinID),'',(LisFormCaption),(ConnectString),
         (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-        ifRecLog,true,'常规');
+      ifRecLog,true,'常规',
+      '',
+      -1,
+      '','','','',
+      -1,-1,-1,-1,
+      -1,-1,-1,-1,
+      false,false,false,false);
       if not VarIsEmpty(FInts) then FInts:= unAssigned;
     end;
-
   end;  
   ls.Free;
 end;
