@@ -74,6 +74,7 @@ var
   QuaContSpecNoD:string;
   EquipChar:string;
   ifRecLog:boolean;//是否记录调试日志
+  No_Patient_ID:integer;
 
   //RFM:STRING;       //返回数据
   hnd:integer;
@@ -194,6 +195,7 @@ begin
   SpecType:=ini.ReadString(IniSection,'默认样本类型','');
   SpecStatus:=ini.ReadString(IniSection,'默认样本状态','');
   CombinID:=ini.ReadString(IniSection,'组合项目代码','');
+  No_Patient_ID:=ini.ReadInteger(IniSection,'联机号位',0);
 
   LisFormCaption:=ini.ReadString(IniSection,'检验系统窗体标题','');
 
@@ -214,8 +216,8 @@ begin
       ComPort1.BaudRate:=br4800
       else if BaudRate='9600' then
         ComPort1.BaudRate:=br9600
-        else if BaudRate='19200' then
-          ComPort1.BaudRate:=br19200
+        else if BaudRate='115200' then
+          ComPort1.BaudRate:=br115200
           else ComPort1.BaudRate:=br9600;
   if DataBit='5' then
     ComPort1.DataBits:=dbFive
@@ -298,12 +300,13 @@ begin
   //获取串口列表 end
 
     ss:='串口选择'+#2+'Combobox'+#2+sComPort+#2+'0'+#2+#2+#3+
-      '波特率'+#2+'Combobox'+#2+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
+      '波特率'+#2+'Combobox'+#2+'115200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
       '校验位'+#2+'Combobox'+#2+'None'+#13+'Even'+#13+'Odd'+#13+'Mark'+#13+'Space'+#2+'0'+#2+#2+#3+
       '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '联机号位'+#2+'Edit'+#2+#2+'1'+#2+'数据行用空格分隔,从0开始,第几位'+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本类型'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
@@ -413,7 +416,8 @@ begin
 
     sList:=TStringList.Create;
     ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
-    SpecNo:=rightstr('0000'+sList[0],4);
+    SpecNo:='';
+    if sList.Count>No_Patient_ID then SpecNo:=rightstr('0000'+sList[No_Patient_ID],4);
 
     ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
     for  j:=0  to sList.Count-1 do
