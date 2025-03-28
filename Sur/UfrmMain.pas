@@ -407,6 +407,13 @@ begin
   begin
     sList:=TStringList.Create;
     ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
+
+    if sList.Count<2 then//过滤非法数据.至少应有2个元素(样本号、至少1个项目结果)
+    begin
+      sList.Free;
+      continue;
+    end;
+    
     ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
     for  j:=0  to sList.Count-1 do
     begin
