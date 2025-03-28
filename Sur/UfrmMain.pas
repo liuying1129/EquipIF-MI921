@@ -306,7 +306,7 @@ begin
       '校验位'+#2+'Combobox'+#2+'None'+#13+'Even'+#13+'Odd'+#13+'Mark'+#13+'Space'+#2+'0'+#2+#2+#3+
       '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
-      '联机号位'+#2+'Edit'+#2+#2+'1'+#2+'数据行用空格分隔,从0开始,第几位'+#2+#3+
+      '联机号位'+#2+'Edit'+#2+#2+'1'+#2+'用空格分隔数据行,从0开始,第几位'+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本类型'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
@@ -396,32 +396,22 @@ var
   FInts:OleVariant;
 begin
   //假设每次接收到1个或多个样本的完整结果数据
-  str:='';
   comport1.ReadStr(str,count);
-  //str:='002   5.34   162.1   113.2   1.18   2.42   8.07   36.14   12.83';//此行代码用于测试
 
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(str);
 
-  //rfm:=rfm+str;
-
-  //ls:=StrToList(RFM,#$A);//如果用ExtractStrings，会将#$D丢弃，所以改用StrToList
   ls:=TStringList.Create;
   ExtractStrings([#$D,#$A],[],pchar(str),ls);
   for i :=0 to ls.Count-1 do
   begin
-    //if rightstr(ls[i],1)<>#$D then continue;
-
-    //rfm:=StringReplace(rfm,ls[i]+#$A,'',[]);
-
     sList:=TStringList.Create;
     ExtractStrings([#$20],[],pchar(ls[i]),sList);//#$20表示空格
-    SpecNo:='';
-    if sList.Count>No_Patient_ID then SpecNo:=rightstr('0000'+sList[No_Patient_ID],4);
-
     ReceiveItemInfo:=VarArrayCreate([0,sList.Count-1],varVariant);
     for  j:=0  to sList.Count-1 do
     begin
+      if j=No_Patient_ID then SpecNo:=rightstr('0000'+sList[No_Patient_ID],4);
+
       ReceiveItemInfo[j]:=VarArrayof([inttostr(j),sList[j],'','']);
     end;
     sList.Free;
